@@ -1,126 +1,150 @@
 import Lesson from '../models/lesson.model.js';
 
-// @desc    Get all lessons
-// @route   GET /api/lessons
-// @access  Public
-export const getLessons = async (req, res, next) => {
+// Get all lessons
+export const getAllLessons = async (req, res) => {
   try {
-    const { category, language } = req.query;
-    let query = { isPublished: true };
+    const { category, difficulty } = req.query;
+    const query = {};
 
-    if (category) {
-      query.category = category;
-    }
+    if (category) query.category = category;
+    if (difficulty) query.difficulty = difficulty;
 
     const lessons = await Lesson.find(query)
-      .populate('createdBy', 'name phone')
-      .sort('-createdAt');
+      .populate('createdBy', 'name')
+      .sort({ createdAt: -1 });
 
-    // Filter by language if specified
-    if (language) {
-      lessons.forEach(lesson => {
-        if (lesson.title.has(language)) {
-          lesson.title = lesson.title.get(language);
-          lesson.description = lesson.description.get(language);
-          if (lesson.content.has(language)) {
-            lesson.content = lesson.content.get(language);
-          }
-        }
+    res.json({
+      success: true,
+      data: { lessons }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching lessons',
+      error: error.message
+    });
+  }
+};
+
+// Get single lesson
+export const getLessonById = async (req, res) => {
+  try {
+    const lesson = await Lesson.findById(req.params.id)
+      .populate('createdBy', 'name');
+
+    if (!lesson) {
+      return res.status(404).json({
+        success: false,
+        message: 'Lesson not found'
       });
     }
 
-    res.json(lessons);
+    res.json({
+      success: true,
+      data: { lesson }
+    });
   } catch (error) {
-    res.status(400).json({ message: error.message });
-    next(error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching lesson',
+      error: error.message
+    });
   }
 };
 
-// @desc    Get single lesson
-// @route   GET /api/lessons/:id
-// @access  Public
-export const getLesson = async (req, res, next) => {
+// Create new lesson
+export const createLesson = async (req, res) => {
   try {
-    const lesson = await Lesson.findById(req.params.id)
-      .populate('createdBy', 'name phone');
-
-    if (!lesson) {
-      return res.status(404).json({ message: 'Lesson not found' });
-    }
-
-    // If lesson is not published and user is not admin
-    if (!lesson.isPublished && (!req.user || req.user.role !== 'admin')) {
-      return res.status(403).json({ message: 'Not authorized to access this lesson' });
-    }
-
-    res.json(lesson);
-  } catch (error) {
-    res.status(400).json({ message: error.message });
-    next(error);
-  }
-};
-
-// @desc    Create lesson
-// @route   POST /api/lessons
-// @access  Private/Admin
-export const createLesson = async (req, res, next) => {
-  try {
-    const { title, description, category, content, duration, difficulty } = req.body;
-
     const lesson = await Lesson.create({
-      title,
-      description,
-      category,
-      content,
-      duration,
-      difficulty,
-      createdBy: req.user._id
+      ...req.body,
+      createdBy: req.user.id
     });
 
-    res.status(201).json(lesson);
+    res.status(201).json({
+      success: true,
+      message: 'Lesson created successfully',
+      data: { lesson }
+    });
   } catch (error) {
-    res.status(400).json({ message: error.message });
-    next(error);
+    res.status(500).json({
+      success: false,
+      message: 'Error creating lesson',
+      error: error.message
+    });
   }
 };
 
-// @desc    Update lesson
-// @route   PUT /api/lessons/:id
-// @access  Private/Admin
-export const updateLesson = async (req, res, next) => {
+// Update lesson
+export const updateLesson = async (req, res) => {
   try {
     const lesson = await Lesson.findById(req.params.id);
+
     if (!lesson) {
-      return res.status(404).json({ message: 'Lesson not found' });
+      return res.status(404).json({
+        success: false,
+        message: 'Lesson not found'
+      });
+    }
+
+    // Check if user is the creator or an admin
+    if (lesson.createdBy.toString() !== req.user.id && req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to update this lesson'
+      });
     }
 
     const updatedLesson = await Lesson.findByIdAndUpdate(
       req.params.id,
       req.body,
-      { new: true }
-    );
+      { new: true, runValidators: true }
+    ).populate('createdBy', 'name');
 
-    res.json(updatedLesson);
+    res.json({
+      success: true,
+      message: 'Lesson updated successfully',
+      data: { lesson: updatedLesson }
+    });
   } catch (error) {
-    res.status(400).json({ message: error.message });
-    next(error);
+    res.status(500).json({
+      success: false,
+      message: 'Error updating lesson',
+      error: error.message
+    });
   }
 };
 
-// @desc    Delete lesson
-// @route   DELETE /api/lessons/:id
-// @access  Private/Admin
-export const deleteLesson = async (req, res, next) => {
+// Delete lesson
+export const deleteLesson = async (req, res) => {
   try {
     const lesson = await Lesson.findById(req.params.id);
+
     if (!lesson) {
-      return res.status(404).json({ message: 'Lesson not found' });
+      return res.status(404).json({
+        success: false,
+        message: 'Lesson not found'
+      });
+    }
+
+    // Check if user is the creator or an admin
+    if (lesson.createdBy.toString() !== req.user.id && req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to delete this lesson'
+      });
     }
 
     await lesson.deleteOne();
-    res.json({ message: 'Lesson removed' });
+
+    res.json({
+      success: true,
+      message: 'Lesson deleted successfully'
+    });
   } catch (error) {
-    res.status(400).json({ message: error.message });
-    next(error);
+    res.status(500).json({
+      success: false,
+      message: 'Error deleting lesson',
+      error: error.message
+    });
   }
 }; 

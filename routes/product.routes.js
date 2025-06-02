@@ -1,36 +1,31 @@
 import express from 'express';
 import {
-  getProducts,
-  getProduct,
+  getAllProducts,
+  getProductById,
   createProduct,
   updateProduct,
   deleteProduct,
-  getUserProducts,
-  uploadProductImage
+  getProductsByUser,
+  getProductsByCategory
 } from '../controllers/product.controller.js';
-import { protect } from '../middleware/auth.middleware.js';
-import multer from 'multer';
+import { authenticate, authorize } from '../middlewares/auth.js';
+import { validateRequest } from '../middlewares/validate.js';
+import { productSchema } from '../validators/product.schema.js';
 
 const router = express.Router();
 
-// Configure multer for file upload
-const storage = multer.memoryStorage();
-const upload = multer({ storage });
+// Public routes
+router.get('/', getAllProducts);
+router.get('/category/:category', getProductsByCategory);
+router.get('/:id', getProductById);
 
-// Protect all routes
-router.use(protect);
+// Protected routes
+router.use(authenticate);
 
-// Product routes
-router.route('/')
-  .get(getProducts)
-  .post(createProduct);
-
-router.route('/:id')
-  .get(getProduct)
-  .put(updateProduct)
-  .delete(deleteProduct);
-
-router.get('/user/:id', getUserProducts);
-router.post('/upload', upload.single('image'), uploadProductImage);
+// Product management routes
+router.post('/', validateRequest(productSchema), createProduct);
+router.put('/:id', validateRequest(productSchema), updateProduct);
+router.delete('/:id', deleteProduct);
+router.get('/user/:userId', getProductsByUser);
 
 export default router; 
