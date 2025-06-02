@@ -2,86 +2,124 @@ import User from '../models/user.model.js';
 import Product from '../models/product.model.js';
 import Forum from '../models/forum.model.js';
 import Lesson from '../models/lesson.model.js';
-import Comment from '../models/comment.model.js';
 
-// @desc    Get admin dashboard overview
-// @route   GET /api/admin/overview
-// @access  Private/Admin
-export const getOverview = async (req, res, next) => {
+// Get dashboard overview
+export const getDashboardOverview = async (req, res) => {
   try {
-    // Get total counts
-    const totalUsers = await User.countDocuments();
-    const totalProducts = await Product.countDocuments();
-    const totalForums = await Forum.countDocuments();
-    const totalLessons = await Lesson.countDocuments();
-
-    // Get user counts by role
-    const userCounts = await User.aggregate([
-      {
-        $group: {
-          _id: '$role',
-          count: { $sum: 1 }
+    const [
+      totalUsers,
+      totalProducts,
+      totalForums,
+      totalLessons,
+      reportedForums,
+      userStats
+    ] = await Promise.all([
+      User.countDocuments(),
+      Product.countDocuments(),
+      Forum.countDocuments(),
+      Lesson.countDocuments(),
+      Forum.find({ isReported: true }).count(),
+      User.aggregate([
+        {
+          $group: {
+            _id: '$role',
+            count: { $sum: 1 }
+          }
         }
-      }
+      ])
     ]);
 
-    // Get recent activities
-    const recentUsers = await User.find()
-      .sort('-createdAt')
-      .limit(5)
-      .select('name phone role createdAt');
-
-    const recentProducts = await Product.find()
-      .sort('-createdAt')
-      .limit(5)
-      .populate('user', 'name phone');
-
-    const recentForums = await Forum.find()
-      .sort('-createdAt')
-      .limit(5)
-      .populate('author', 'name phone');
-
     res.json({
-      stats: {
+      success: true,
+      data: {
         totalUsers,
         totalProducts,
         totalForums,
         totalLessons,
-        userCounts
-      },
-      recentActivity: {
-        users: recentUsers,
-        products: recentProducts,
-        forums: recentForums
+        reportedForums,
+        userStats: userStats.reduce((acc, curr) => {
+          acc[curr._id] = curr.count;
+          return acc;
+        }, {})
       }
     });
   } catch (error) {
-    res.status(400).json({ message: error.message });
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching dashboard overview',
+      error: error.message
+    });
   }
 };
 
-// @desc    Get reported content
-// @route   GET /api/admin/reports
-// @access  Private/Admin
-export const getReports = async (req, res, next) => {
+// Get reported content
+export const getReportedContent = async (req, res) => {
   try {
-    // Get reported forums
     const reportedForums = await Forum.find({ isReported: true })
-      .populate('author', 'name phone')
-      .sort('-createdAt');
-
-    // Get reported comments
-    const reportedComments = await Comment.find({ isReported: true })
-      .populate('author', 'name phone')
-      .populate('forum', 'title')
-      .sort('-createdAt');
+      .populate('author', 'name role')
+      .sort({ createdAt: -1 });
 
     res.json({
-      forums: reportedForums,
-      comments: reportedComments
+      success: true,
+      data: { reportedForums }
     });
   } catch (error) {
-    res.status(400).json({ message: error.message });
-    next(error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching reported content',
+      error: error.message
+    });
+  }
+};
+
+// Handle reported content
+export const handleReportedContent = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { action } = req.body;
+
+    const forum = await Forum.findById(id);
+    if (!forum) {
+      return res.status(404).json({
+        success: false,
+        message: 'Forum post not found'
+      });
+    }
+
+    if (!forum.isReported) {
+      return res.status(400).json({
+        success: false,
+        message: 'This post is not reported'
+      });
+    }
+
+    switch (action) {
+      case 'dismiss':
+        forum.isReported = false;
+        forum.reportReason = undefined;
+        await forum.save();
+        break;
+
+      case 'delete':
+        await forum.deleteOne();
+        break;
+
+      default:
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid action'
+        });
+    }
+
+    res.json({
+      success: true,
+      message: `Report ${action}ed successfully`
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error handling reported content',
+      error: error.message
+    });
   }
 }; 

@@ -1,36 +1,37 @@
 import express from 'express';
 import {
-  getForums,
-  getForum,
+  getAllForums,
+  getForumById,
   createForum,
   updateForum,
   deleteForum,
-  addComment,
-  updateComment,
-  deleteComment
+  getForumsByCategory,
+  likeForum,
+  unlikeForum,
+  reportForum
 } from '../controllers/forum.controller.js';
-import { protect } from '../middleware/auth.middleware.js';
+import { authenticate, authorize } from '../middlewares/auth.js';
+import { validateRequest } from '../middlewares/validate.js';
+import { forumSchema } from '../validators/forum.schema.js';
 
 const router = express.Router();
 
 // Public routes
-router.get('/', getForums);
-router.get('/:id', getForum);
+router.get('/', getAllForums);
+router.get('/category/:category', getForumsByCategory);
+router.get('/:id', getForumById);
 
 // Protected routes
-router.use(protect);
+router.use(authenticate);
 
-router.route('/')
-  .post(createForum);
+// Forum management routes
+router.post('/', validateRequest(forumSchema), createForum);
+router.put('/:id', validateRequest(forumSchema), updateForum);
+router.delete('/:id', deleteForum);
 
-router.route('/:id')
-  .put(updateForum)
-  .delete(deleteForum);
-
-// Comment routes
-router.post('/:forumId/comments', addComment);
-router.route('/comments/:id')
-  .put(updateComment)
-  .delete(deleteComment);
+// Forum interaction routes
+router.post('/:id/like', likeForum);
+router.delete('/:id/like', unlikeForum);
+router.post('/:id/report', reportForum);
 
 export default router; 

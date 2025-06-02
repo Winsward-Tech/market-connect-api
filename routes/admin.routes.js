@@ -1,17 +1,20 @@
 import express from 'express';
 import {
-  getOverview,
-  getReports
+  getDashboardOverview,
+  getReportedContent,
+  handleReportedContent
 } from '../controllers/admin.controller.js';
-import { protect, authorize } from '../middleware/auth.middleware.js';
+import { authenticate, authorize } from '../middlewares/auth.js';
 
 const router = express.Router();
 
-// Protect all routes
-router.use(protect);
+// All routes require authentication and admin role
+router.use(authenticate);
 router.use(authorize('admin'));
 
-router.get('/overview', getOverview);
-router.get('/reports', getReports);
+// Admin routes
+router.get('/dashboard', getDashboardOverview);
+router.get('/reported-content', getReportedContent);
+router.put('/reported-content/:id', handleReportedContent);
 
 export default router; 

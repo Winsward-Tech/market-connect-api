@@ -1,7 +1,7 @@
 //user schema with role management
 import mongoose from 'mongoose';
 import normalize from 'normalize-mongoose';
-// import bcrypt from 'bcryptjs';
+import bcrypt from 'bcryptjs';
 
 const userSchema = new mongoose.Schema({
   name: { type: String, required: true },
@@ -29,13 +29,7 @@ const userSchema = new mongoose.Schema({
   },
   pin: { 
     type: String, 
-    required: true,
-    validate: {
-      validator: function(v) {
-        return /^\d{6}$/.test(v); // 6-digit PIN
-      },
-      message: props => `${props.value} is not a valid 6-digit PIN!`
-    }
+    required: true
   },
   otp: {
     code: String,
@@ -47,15 +41,28 @@ const userSchema = new mongoose.Schema({
   }
 }, { timestamps: true });
 
-// userSchema.pre('save', async function (next) {
-//   if (!this.isModified('password')) return next();
-//   this.password = await bcrypt.hash(this.password, 10);
-//   next();
-// });
+// Hash PIN before saving
+userSchema.pre('save', async function(next) {
+  try {
+    if (!this.isModified('pin')) return next();
+    
+    // Only validate PIN format if it's not already hashed
+    if (!this.pin.startsWith('$2')) {
+      if (!/^\d{6}$/.test(this.pin)) {
+        return next(new Error('PIN must be 6 digits'));
+      }
+      this.pin = await bcrypt.hash(this.pin, 10);
+    }
+    next();
+  } catch (error) {
+    next(error);
+  }
+});
 
-// userSchema.methods.comparePassword = async function (candidatePassword) {
-//   return await bcrypt.compare(candidatePassword, this.password);
-// };
+// Compare PIN method
+userSchema.methods.comparePin = async function(candidatePin) {
+  return await bcrypt.compare(candidatePin, this.pin);
+};
 
 userSchema.plugin(normalize);
 export default mongoose.model('User', userSchema);

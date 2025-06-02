@@ -1,26 +1,29 @@
 import express from 'express';
 import {
-  getUser,
+  getUserById,
   updateUser,
   deleteUser,
   getUsersByRole,
   getAllUsers
 } from '../controllers/user.controller.js';
-import { protect, authorize } from '../middleware/auth.middleware.js';
+import { authenticate, authorize } from '../middlewares/auth.js';
+import { validateRequest } from '../middlewares/validate.js';
+import { updateUserSchema } from '../validators/user.schema.js';
 
 const router = express.Router();
 
-// Protect all routes
-router.use(protect);
+// Public routes
+router.get('/role/:role', getUsersByRole);
+
+// Protected routes
+router.use(authenticate);
+
+// User profile routes
+router.get('/:id', getUserById);
+router.put('/:id', validateRequest(updateUserSchema), updateUser);
 
 // Admin only routes
-router.get('/role/:role', authorize('admin'), getUsersByRole);
 router.get('/', authorize('admin'), getAllUsers);
-
-// User routes
-router.route('/:id')
-  .get(getUser)
-  .put(updateUser)
-  .delete(deleteUser);
+router.delete('/:id', authorize('admin'), deleteUser);
 
 export default router; 
