@@ -38,7 +38,7 @@ NODE_ENV=development
 PORT=5000
 MONGODB_URI=mongodb://localhost:27017/winsward
 JWT_SECRET=your-super-secret-jwt-key-change-this-in-production
-CLIENT_URL=http://localhost:4800
+CLIENT_URL=http://localhost:3000
 ```
 
 4. Start the development server:
