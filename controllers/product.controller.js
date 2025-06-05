@@ -1,5 +1,8 @@
 import { Product } from '../models/product.model.js';
-import { validateProduct } from '../validators/product.validator.js';
+// We no longer validate file upload here, validation for image URL is in schema
+// import { validateProduct } from '../validators/product.validator.js';
+// Cloudinary config is not needed directly in controller for this workflow
+// import { cloudinary } from '../config/cloudinary.js';
 
 // Get all products
 export const getAllProducts = async (req, res) => {
@@ -74,35 +77,34 @@ export const getProductById = async (req, res) => {
 // Create new product
 export const createProduct = async (req, res) => {
   try {
-    // Validate product data
-    const { error } = validateProduct(req.body);
-    if (error) {
-      return res.status(400).json({
-        success: false,
-        message: error.details[0].message
-      });
-    }
+    console.log('=== Product Creation Started in Controller ===');
+    console.log('Raw request body:', req.body);
 
-    // Check if files were uploaded
-    if (!req.files || req.files.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'At least one product image is required'
-      });
-    }
+    // req.file is no longer processed here, expecting image URL in body
+    // Check if file was uploaded
+    // if (!req.file) {
+    //   return res.status(400).json({
+    //     success: false,
+    //     message: 'Product image is required'
+    //   });
+    // }
 
-    // Get Cloudinary URLs
-    const imageUrls = req.files.map(file => file.path);
+    // Parsed and validated data is in req.validatedData after validateRequest middleware
+    const productData = {
+      ...req.validatedData,
+      seller: req.user._id,
+      // image is now expected as a string URL in req.validatedData
+    };
+
+    console.log('Final product data for creation:', productData);
 
     // Create new product
-    const product = new Product({
-      ...req.body,
-      images: imageUrls,
-      seller: req.user._id
-    });
+    const product = new Product(productData);
 
     // Save product
     await product.save();
+
+    console.log('Product saved successfully:', product);
 
     res.status(201).json({
       success: true,
@@ -134,14 +136,23 @@ export const updateProduct = async (req, res) => {
       });
     }
 
-    // If new images are uploaded
-    if (req.files && req.files.length > 0) {
-      const newImageUrls = req.files.map(file => file.path);
-      req.body.images = newImageUrls;
-    }
+    // If new image is uploaded - this logic moves to the /upload route
+    // if (req.file) {
+    //   const uploadResult = await cloudinary.uploader.upload(req.file.path, {
+    //     folder: 'winsward/products',
+    //     resource_type: 'auto'
+    //   });
+    //   req.body.image = uploadResult.secure_url;
+    // }
+
+    // Parsed and validated data is in req.validatedData after validateRequest middleware
+    const updateData = {
+      ...req.validatedData,
+      // image is now expected as a string URL in req.validatedData
+    };
 
     // Update product
-    Object.assign(product, req.body);
+    Object.assign(product, updateData);
     await product.save();
 
     res.json({
